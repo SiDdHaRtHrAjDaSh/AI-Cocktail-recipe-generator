@@ -4,7 +4,7 @@ import { GoogleGenAI, Type } from "@google/genai";
 
 const API_KEY = process.env.API_KEY;
 
-const ALCOHOL_TYPES = ["Vodka", "Gin", "Rum", "Tequila", "Whiskey", "Brandy"];
+const ALCOHOL_TYPES = ["Vodka", "Gin", "Rum", "Tequila", "Whiskey", "Brandy", "Wine", "Beer", "Vermouth", "Aperol", "Cognac", "Soju", "Sake"];
 
 interface Recipe {
   name: string;
@@ -18,12 +18,15 @@ interface Recipe {
 const App = () => {
   const [theme, setTheme] = useState('dark');
   const [selectedAlcohols, setSelectedAlcohols] = useState<string[]>([]);
+  const [liqueurs, setLiqueurs] = useState('');
   const [mixers, setMixers] = useState('');
   const [otherIngredients, setOtherIngredients] = useState('');
   const [recipes, setRecipes] = useState<Recipe[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [loadingMessage, setLoadingMessage] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [currentRecipeIndex, setCurrentRecipeIndex] = useState(0);
+
 
   useEffect(() => {
     document.body.className = `${theme}-theme`;
@@ -73,25 +76,30 @@ const App = () => {
     setLoadingMessage('Mixing up some recipes...');
     setError(null);
     setRecipes(null);
+    setCurrentRecipeIndex(0);
 
     const ai = new GoogleGenAI({ apiKey: API_KEY });
 
     let prompt = '';
     if (isSurprise) {
-      prompt = "Generate between 2 and 4 creative and surprising cocktail recipes. They can be anything, from classics with a twist to something completely new.";
+      prompt = "Generate between 2 and 4 cocktail recipes. At least one should be a well-known classic cocktail (like a Margarita, Mojito, etc.), and the others should be creative and surprising recipes, perhaps a twist on a classic or something completely new.";
     } else {
-      if (selectedAlcohols.length === 0 && !mixers && !otherIngredients) {
-          setError("Please select an alcohol or provide some mixers/ingredients.");
+      if (selectedAlcohols.length === 0 && !liqueurs && !mixers && !otherIngredients) {
+          setError("Please select a spirit or provide some ingredients to get started.");
           setLoading(false);
           return;
       }
-      prompt = `Create between 2 and 4 distinct cocktail recipes based on the following preferences:
+      prompt = `Create between 2 and 4 distinct cocktail recipes based on the following ingredients:
       - Primary Alcohols: ${selectedAlcohols.join(', ') || 'Any'}
+      - Liqueurs: ${liqueurs || 'Any'}
       - Available Mixers: ${mixers || 'Any'}
       - Other Ingredients: ${otherIngredients || 'Any'}
-      
-      IMPORTANT: At least one recipe must use all the provided ingredients (alcohols, mixers, and others). The other recipes can be creative variations using a subset of the ingredients.
-      
+
+      IMPORTANT INSTRUCTIONS:
+      1.  **Include a Classic:** If the provided ingredients can make a famous, classic cocktail (like a Margarita, LIIT, Mojito, etc.), you MUST include it as one of the recipes.
+      2.  **Creative Variations:** The other recipes should be unique, creative cocktails using the provided ingredients.
+      3.  **Ingredient Utilization:** One of the creative recipes should try to use as many of the provided ingredients as possible.
+
       Please provide a unique name for each cocktail.`;
     }
 
@@ -147,7 +155,19 @@ const App = () => {
       setLoading(false);
       setLoadingMessage('');
     }
-  }, [selectedAlcohols, mixers, otherIngredients]);
+  }, [selectedAlcohols, liqueurs, mixers, otherIngredients]);
+
+  const handleNextRecipe = () => {
+    if (recipes) {
+      setCurrentRecipeIndex((prevIndex) => (prevIndex + 1) % recipes.length);
+    }
+  };
+
+  const handlePrevRecipe = () => {
+    if (recipes) {
+      setCurrentRecipeIndex((prevIndex) => (prevIndex - 1 + recipes.length) % recipes.length);
+    }
+  };
 
   return (
     <>
@@ -157,9 +177,9 @@ const App = () => {
         </ul>
       </div>
       <div className="app-container">
-        <div className="theme-switcher" onClick={toggleTheme} role="switch" aria-checked={theme === 'dark'} aria-label="Toggle theme">
+        <div className="theme-switcher" role="switch" aria-checked={theme === 'dark'} aria-label="Toggle theme">
           <label className="switch">
-            <input type="checkbox" checked={theme === 'dark'} onChange={() => {}} />
+            <input type="checkbox" checked={theme === 'dark'} onChange={toggleTheme} />
             <span className="slider"></span>
           </label>
         </div>
@@ -187,6 +207,18 @@ const App = () => {
                 </div>
               ))}
             </div>
+          </div>
+
+          <div className="form-group">
+            <label htmlFor="liqueurs">Any specific liqueurs?</label>
+            <input
+              id="liqueurs"
+              type="text"
+              className="text-input"
+              value={liqueurs}
+              onChange={e => setLiqueurs(e.target.value)}
+              placeholder="e.g., Cointreau, St-Germain, Campari"
+            />
           </div>
 
           <div className="form-group">
@@ -230,40 +262,66 @@ const App = () => {
               </div>
             )}
             {error && <div className="error-message">{error}</div>}
-            {recipes && (
-              <div className="recipes-grid">
-                {recipes.map((recipe, index) => (
-                    <div className="recipe-card" key={index}>
-                        {recipe.imageUrl ? (
-                            <img src={recipe.imageUrl} alt={`A photo of a ${recipe.name} cocktail.`} className="recipe-image" />
-                        ) : (
-                            <div className="recipe-image-placeholder">
-                                <span>Generating Image...</span>
-                            </div>
-                        )}
-                        <h2>{recipe.name}</h2>
-                        <p className="description">{recipe.description}</p>
-        
-                        <h3>Ingredients</h3>
-                        <ul className="ingredient-list">
-                          {recipe.ingredients.map((item, i) => (
-                            <li key={i}>{item}</li>
-                          ))}
-                        </ul>
-        
-                        <h3>Instructions</h3>
-                        <ol>
-                          {recipe.instructions.map((item, i) => <li key={i}>{item}</li>)}
-                        </ol>
-        
-                        {recipe.garnish && (
-                            <>
-                              <h3>Garnish</h3>
-                              <p>{recipe.garnish}</p>
-                            </>
-                        )}
-                  </div>
-                ))}
+            {recipes && recipes.length > 0 && (
+              <div className="carousel-container">
+                <div className="carousel-track" style={{ transform: `translateX(-${currentRecipeIndex * 100}%)` }}>
+                    {recipes.map((recipe, index) => (
+                        <div className="carousel-slide" key={index}>
+                            <div className="recipe-card">
+                                <div className="recipe-image-container">
+                                    {recipe.imageUrl ? (
+                                        <img src={recipe.imageUrl} alt={`A photo of a ${recipe.name} cocktail.`} className="recipe-image" />
+                                    ) : (
+                                        <div className="recipe-image-placeholder">
+                                            <span>Generating Image...</span>
+                                        </div>
+                                    )}
+                                </div>
+                                <div className="recipe-details">
+                                    <h2>{recipe.name}</h2>
+                                    <p className="description">{recipe.description}</p>
+                    
+                                    <h3>Ingredients</h3>
+                                    <ul className="ingredient-list">
+                                      {recipe.ingredients.map((item, i) => (
+                                        <li key={i}>{item}</li>
+                                      ))}
+                                    </ul>
+                    
+                                    <h3>Instructions</h3>
+                                    <ol>
+                                      {recipe.instructions.map((item, i) => <li key={i}>{item}</li>)}
+                                    </ol>
+                    
+                                    {recipe.garnish && (
+                                        <>
+                                          <h3>Garnish</h3>
+                                          <p>{recipe.garnish}</p>
+                                        </>
+                                    )}
+                                </div>
+                          </div>
+                        </div>
+                    ))}
+                </div>
+                
+                {recipes.length > 1 && (
+                  <>
+                    <button onClick={handlePrevRecipe} className="carousel-btn prev" aria-label="Previous recipe">&#10094;</button>
+                    <button onClick={handleNextRecipe} className="carousel-btn next" aria-label="Next recipe">&#10095;</button>
+                  </>
+                )}
+
+                <div className="carousel-dots">
+                    {recipes.map((_, index) => (
+                        <button
+                            key={index}
+                            className={`dot ${currentRecipeIndex === index ? 'active' : ''}`}
+                            onClick={() => setCurrentRecipeIndex(index)}
+                            aria-label={`Go to recipe ${index + 1}`}
+                        />
+                    ))}
+                </div>
               </div>
             )}
           </div>
