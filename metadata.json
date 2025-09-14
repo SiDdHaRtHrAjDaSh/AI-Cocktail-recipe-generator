@@ -1,0 +1,5 @@
+{
+  "name": "AI Cocktail Recipe Generator",
+  "description": "An AI-powered app to generate custom cocktail recipes based on user preferences, featuring a surprise me option and a theme switcher.",
+  "requestFramePermissions": []
+}
